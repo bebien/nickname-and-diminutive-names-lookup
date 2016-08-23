@@ -44,6 +44,48 @@ select
 from NICKNAMES 
 group by case when TOP_NICKNAME is null then 'bad' else 'good' end;
 
+
 /* For the large number of remaining records... manually select the TOP_NICKNAME. Yuck. */
+
+/* Having manually set all of the TOP_NICKNAME values, now we clean up the raw data. */
+/* names.csv was alphabetical, but the nicknames following the GIVEN_NAME were not alphabetical. */
+
+/* note the hard-coded use of '14' below because the data is known to have a maximum of 14 nicknames (but this could change in the future!! */
+/* I found the value 14 like this: */
+select max(regexp_count(ALL_NICKNAMES, ',')) num_names from NICKNAMES;
+
+/* test on just a few rows */
+select n.*, REGEXP_SUBSTR(ALL_NICKNAMES, '[^,]+', 1, rn) as split_string
+from 
+  (select * from NICKNAMES where RAW_DATA like 'aaron%' or RAW_DATA like 'agnes%' or RAW_DATA like 'abiel%' or RAW_DATA like 'adelaide%') n
+  cross join (select rownum as rn from dual connect by level <= 14)
+where REGEXP_SUBSTR(ALL_NICKNAMES, '[^,]+', 1, rn) IS NOT NULL
+order by 1, 5
+;
+
+/* Get a record for each nickname. Stated otherwise: normalize the data */
+select n.*, REGEXP_SUBSTR(ALL_NICKNAMES, '[^,]+', 1, rn) as split_string
+from NICKNAMES n
+cross join (select rownum as rn from dual connect by level <= 14)
+where REGEXP_SUBSTR(ALL_NICKNAMES, '[^,]+', 1, rn) IS NOT NULL
+order by 1, 5
+;
+
+/* Now aggregate them back together, but this time the nicknames are put in alphabetical order. */
+select RAW_DATA, max(GIVEN_NAME) GIVEN_NAME, max(TOP_NICKNAME) TOP_NICKNAME, listagg(split_string, ',') within group (order by split_string) ALL_NICKNAMES_ORDERED 
+from (
+  select n.*, REGEXP_SUBSTR(ALL_NICKNAMES, '[^,]+', 1, rn) as split_string
+  from NICKNAMES n
+  cross join (select rownum as rn from dual connect by level <= 14)
+  where REGEXP_SUBSTR(ALL_NICKNAMES, '[^,]+', 1, rn) IS NOT NULL
+)
+group by RAW_DATA
+order by RAW_DATA
+;
+
+/* Save the output of this final query to names_enhanced.csv. */
+/* This "csv" file is pipe-separated, but that doesn't bother me. */
+
+
 
 
